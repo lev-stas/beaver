@@ -13,3 +13,4 @@ go.work.sum
 .env
 /bin
 .DS_Store
+/deploy/data
