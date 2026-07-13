@@ -24,6 +24,75 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 3
 
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    # listen_addresses defaults to 'localhost' in the stock config file below,
+    # which would make postgres unreachable from other containers; the image's
+    # own entrypoint normally patches this in, but only for its self-generated
+    # config, not one we fully override, so it's set explicitly here instead
+    # of editing the (deliberately stock) mounted file.
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "listen_addresses=*"]
+    networks:
+      - dataload
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    container_name: clickhouse
+    hostname: clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./data/clickhouse:/var/lib/clickhouse
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.xml:ro
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.xml:ro
+      - ./clickhouse/config.d/listen.xml:/etc/clickhouse-server/config.d/listen.xml:ro
+    networks:
+      - dataload
+    environment:
+      CLICKHOUSE_DB: beaver
+
+  producer:
+    build:
+      context: ..
+      dockerfile: cmd/producer/Dockerfile
+    container_name: producer
+    hostname: producer
+    volumes:
+      - ../cmd/producer/config.yml:/app/config.yml:ro
+    networks:
+      - dataload
+    depends_on:
+      - kafka-1
+    restart: on-failure
+
+  consumer:
+    build:
+      context: ..
+      dockerfile: cmd/consumer/Dockerfile
+    container_name: consumer
+    hostname: consumer
+    volumes:
+      - ../cmd/consumer/config.yml:/app/config.yml:ro
+    networks:
+      - dataload
+    depends_on:
+      - kafka-1
+      - clickhouse
+      - postgres
+    restart: on-failure
+
 networks:
   dataload:
     driver: bridge

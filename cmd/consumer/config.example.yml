@@ -1,8 +1,6 @@
 kafka:
   brokers:
-    - "broker1_ip:9092"
-    - "broker2_ip:9092"
-    - "broker3_ip:9092"
+    - "kafka-1:9092"
   topic: "bearer-events"
 
 clickhouse:
