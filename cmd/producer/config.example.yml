@@ -1,0 +1,15 @@
+kafka:
+  brokers:
+    - "broker1_ip:9092"
+    - "broker2_ip:9092"
+    - "broker3_ip:9092"
+  topic: "bearer-events"
+  compression: "none"
+  partitions: 3
+  replication-factor: 1
+
+producer:
+  sse-url: "https://stream.wikimedia.org/v2/stream/recentchange"
+  user-agent: "beaver data stream study-bot"
+  batch-size: 100
+  flush-interval: "5s"

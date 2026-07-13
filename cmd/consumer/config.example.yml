@@ -1,0 +1,18 @@
+kafka:
+  brokers:
+    - "broker1_ip:9092"
+    - "broker2_ip:9092"
+    - "broker3_ip:9092"
+  topic: "bearer-events"
+
+clickhouse:
+  address: "clickhouse:9000"
+  database: "beaver"
+  table: "raw_events"
+
+postgres:
+  dsn: "postgres://beaver:beaver@postgres:5432/beaver?sslmode=disable"
+  table: "page_state"
+
+consumer:
+  consumer-group: "beaver-consumer"

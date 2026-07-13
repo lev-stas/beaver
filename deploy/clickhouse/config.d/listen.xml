@@ -1,0 +1,10 @@
+<!--
+  config.xml below is the stock default and only listens on ::1/127.0.0.1
+  (loopback), which is unreachable from other containers on the compose
+  network. ClickHouse merges every file under config.d/ on top of
+  config.xml, additively for repeated elements like listen_host, so this
+  adds 0.0.0.0 without editing the stock file.
+-->
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+</clickhouse>
