@@ -182,3 +182,9 @@ single-instance Kafka/ClickHouse/PostgreSQL, no TLS, no auth beyond a shared
 password. It's meant to be broken on purpose: kill a broker, fill a disk,
 starve a connection pool, replay a topic from the beginning, and see what
 the system (and the code) actually does.
+
+## Infrastructure STEPs
+
+Versioned starting points and suggested experiments are documented in
+[docs/README.md](docs/README.md). Each STEP describes its initial state and
+includes one example solution that can be used as a reference.
