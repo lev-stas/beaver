@@ -137,6 +137,15 @@ deploy/            docker-compose.yml, stock Postgres/ClickHouse configs
      -c "SELECT wiki, title, edit_count, updated_at FROM page_state ORDER BY updated_at DESC LIMIT 5;"
    ```
 
+   Both apps also expose Prometheus-format metrics at `/metrics` (process
+   CPU/memory/goroutines plus app-level throughput, batching and error
+   counters):
+
+   ```
+   curl localhost:9101/metrics   # producer
+   curl localhost:9102/metrics   # consumer
+   ```
+
 5. **Stop the stand.**
 
    ```
@@ -165,6 +174,7 @@ Both apps take a `--config` flag (default `./config.yml`).
 | `producer.user-agent` | required by Wikimedia's SSE endpoint, or it returns 403 |
 | `producer.batch-size` | max records per Kafka batch send |
 | `producer.flush-interval` | max time to wait before flushing a partial batch |
+| `metrics.listen-address` | address the `/metrics` HTTP endpoint listens on, e.g. `:9100` |
 
 **Consumer** (`cmd/consumer/config.yml`):
 
@@ -174,6 +184,7 @@ Both apps take a `--config` flag (default `./config.yml`).
 | `consumer.consumer-group` | consumer group name |
 | `clickhouse.address` / `.database` / `.table` | native protocol address, e.g. `clickhouse:9000` |
 | `postgres.dsn` / `.table` | full `postgres://` connection string |
+| `metrics.listen-address` | address the `/metrics` HTTP endpoint listens on, e.g. `:9100` |
 
 ## What this stand is (and isn't) for
 

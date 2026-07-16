@@ -6,6 +6,9 @@ kafka:
   partitions: 3
   replication-factor: 1
 
+metrics:
+  listen-address: ":9100"
+
 producer:
   sse-url: "https://stream.wikimedia.org/v2/stream/recentchange"
   user-agent: "beaver data stream study-bot"

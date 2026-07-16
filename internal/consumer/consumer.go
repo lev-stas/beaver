@@ -10,6 +10,7 @@ import (
 	"github.com/lev-stas/beaver/internal/clickhouse"
 	"github.com/lev-stas/beaver/internal/config"
 	"github.com/lev-stas/beaver/internal/event"
+	"github.com/lev-stas/beaver/internal/metrics"
 	"github.com/lev-stas/beaver/internal/postgres"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -25,6 +26,14 @@ type StateWriter interface {
 }
 
 func Run(ctx context.Context, cfg *config.ConsumerConfig) error {
+	reg := metrics.NewRegistry()
+	m := NewMetrics(reg)
+	go func() {
+		if err := metrics.Serve(ctx, cfg.Metrics.ListenAddress, reg); err != nil {
+			log.Printf("metrics server error: %v", err)
+		}
+	}()
+
 	chClient, err := clickhouse.New(context.Background(), cfg.ClickHouse.Address, cfg.ClickHouse.Database, cfg.ClickHouse.Table)
 	if err != nil {
 		return fmt.Errorf("connecting to clickhouse: %w", err)
@@ -74,17 +83,24 @@ func Run(ctx context.Context, cfg *config.ConsumerConfig) error {
 			continue
 		}
 
+		m.recordsPolled.Add(float64(len(records)))
+		m.batchRecords.Observe(float64(len(records)))
+
 		events := make([]*event.RecentChange, 0, len(records))
+		var bytesPolled int
 		for _, record := range records {
+			bytesPolled += len(record.Value)
 			rc, err := event.Parse(record.Value)
 			if err != nil {
+				m.parseErrors.Inc()
 				log.Printf("Skipping malformed event at %s[%d]@%d: %v", record.Topic, record.Partition, record.Offset, err)
 				continue
 			}
 			events = append(events, rc)
 		}
+		m.bytesPolled.Add(float64(bytesPolled))
 
-		if err := processAndCommit(kclient, chClient, pgClient, records, events); err != nil {
+		if err := processAndCommit(kclient, chClient, pgClient, records, events, m); err != nil {
 			return err
 		}
 
@@ -98,17 +114,19 @@ func Run(ctx context.Context, cfg *config.ConsumerConfig) error {
 // context, so a signal mid-write doesn't abort an otherwise-healthy write.
 const writeTimeout = 30 * time.Second
 
-func processAndCommit(kclient *kgo.Client, ch EventWriter, pg StateWriter, records []*kgo.Record, events []*event.RecentChange) error {
+func processAndCommit(kclient *kgo.Client, ch EventWriter, pg StateWriter, records []*kgo.Record, events []*event.RecentChange, m *Metrics) error {
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
 
-	if err := processBatchWithRetry(ctx, ch, pg, events); err != nil {
+	if err := processBatchWithRetry(ctx, ch, pg, events, m); err != nil {
 		return fmt.Errorf("processing batch: %w", err)
 	}
 
+	start := time.Now()
 	if err := kclient.CommitRecords(ctx, records...); err != nil {
 		return fmt.Errorf("committing offsets: %w", err)
 	}
+	m.commitDuration.Observe(time.Since(start).Seconds())
 
 	return nil
 }
@@ -121,19 +139,25 @@ const maxProcessAttempts = 3
 // not re-insert the same rows into ClickHouse. Offsets are only committed by
 // the caller once this returns without error, so a persistent failure here
 // leaves the whole batch uncommitted and safe to reprocess after a restart.
-func processBatchWithRetry(ctx context.Context, ch EventWriter, pg StateWriter, events []*event.RecentChange) error {
-	if err := withRetry(func() error { return ch.WriteBatch(ctx, events) }); err != nil {
+func processBatchWithRetry(ctx context.Context, ch EventWriter, pg StateWriter, events []*event.RecentChange, m *Metrics) error {
+	start := time.Now()
+	if err := withRetry("clickhouse", m, func() error { return ch.WriteBatch(ctx, events) }); err != nil {
 		return fmt.Errorf("writing to clickhouse after %d attempts: %w", maxProcessAttempts, err)
 	}
+	m.writeDuration.WithLabelValues("clickhouse").Observe(time.Since(start).Seconds())
+	m.eventsWritten.WithLabelValues("clickhouse").Add(float64(len(events)))
 
-	if err := withRetry(func() error { return pg.UpsertBatch(ctx, events) }); err != nil {
+	start = time.Now()
+	if err := withRetry("postgres", m, func() error { return pg.UpsertBatch(ctx, events) }); err != nil {
 		return fmt.Errorf("upserting to postgres after %d attempts: %w", maxProcessAttempts, err)
 	}
+	m.writeDuration.WithLabelValues("postgres").Observe(time.Since(start).Seconds())
+	m.eventsWritten.WithLabelValues("postgres").Add(float64(len(events)))
 
 	return nil
 }
 
-func withRetry(fn func() error) error {
+func withRetry(sink string, m *Metrics, fn func() error) error {
 	var err error
 	for attempt := 1; attempt <= maxProcessAttempts; attempt++ {
 		if err = fn(); err == nil {
@@ -143,9 +167,11 @@ func withRetry(fn func() error) error {
 		log.Printf("attempt %d/%d failed: %v", attempt, maxProcessAttempts, err)
 
 		if attempt < maxProcessAttempts {
+			m.writeRetries.WithLabelValues(sink).Inc()
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}
 	}
 
+	m.writeErrors.WithLabelValues(sink).Inc()
 	return err
 }

@@ -12,5 +12,8 @@ postgres:
   dsn: "postgres://beaver:beaver@postgres:5432/beaver?sslmode=disable"
   table: "page_state"
 
+metrics:
+  listen-address: ":9100"
+
 consumer:
   consumer-group: "beaver-consumer"

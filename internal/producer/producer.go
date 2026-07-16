@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lev-stas/beaver/internal/config"
+	"github.com/lev-stas/beaver/internal/metrics"
 	"github.com/r3labs/sse/v2"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -17,6 +18,14 @@ import (
 )
 
 func Run(ctx context.Context, cfg *config.ProducerConfig) error {
+	reg := metrics.NewRegistry()
+	m := NewMetrics(reg)
+	go func() {
+		if err := metrics.Serve(ctx, cfg.Metrics.ListenAddress, reg); err != nil {
+			log.Printf("metrics server error: %v", err)
+		}
+	}()
+
 	sseClient := sse.NewClient(cfg.Producer.SSEURL)
 	sseClient.Headers["User-Agent"] = cfg.Producer.UserAgent
 	sseClient.ReconnectStrategy = backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
@@ -48,11 +57,13 @@ func Run(ctx context.Context, cfg *config.ProducerConfig) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		batchProducer(produceCtx, kclient, cfg.Kafka.Topic, events, cfg.Producer.BatchSize, cfg.Producer.FlushInterval)
+		batchProducer(produceCtx, kclient, cfg.Kafka.Topic, events, cfg.Producer.BatchSize, cfg.Producer.FlushInterval, m)
 	}()
 
 	err = sseClient.SubscribeWithContext(ctx, "messages", func(msg *sse.Event) {
+		m.eventsReceived.Inc()
 		events <- msg.Data
+		m.bufferedEvents.Set(float64(len(events)))
 		fmt.Println(string(msg.ID))
 	})
 	if err != nil && ctx.Err() == nil {
@@ -87,24 +98,39 @@ func ensureTopic(ctx context.Context, kclient *kgo.Client, topic string, partiti
 	return nil
 }
 
-func batchProducer(ctx context.Context, kclient *kgo.Client, topic string, events <-chan []byte, batchSize int, flushInterval time.Duration) {
+func batchProducer(ctx context.Context, kclient *kgo.Client, topic string, events <-chan []byte, batchSize int, flushInterval time.Duration, m *Metrics) {
 	ticker := time.NewTicker(flushInterval)
 	defer ticker.Stop()
 
 	batch := make([]*kgo.Record, 0, batchSize)
 
-	flush := func() {
+	flush := func(trigger string) {
 		if len(batch) == 0 {
 			return
 		}
 
+		m.batchRecords.Observe(float64(len(batch)))
+		m.flushesTotal.WithLabelValues(trigger).Inc()
+
+		start := time.Now()
 		results := kclient.ProduceSync(ctx, batch...)
+		m.flushDuration.Observe(time.Since(start).Seconds())
+
 		if err := results.FirstErr(); err != nil {
+			m.produceErrors.Inc()
 			log.Printf("Error sending batch to kafka: %v", err)
 
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				log.Println("Request canceled by context")
 			}
+		} else {
+			m.eventsProduced.Add(float64(len(batch)))
+
+			var bytes int
+			for _, r := range batch {
+				bytes += len(r.Value)
+			}
+			m.bytesProduced.Add(float64(bytes))
 		}
 
 		batch = batch[:0]
@@ -114,17 +140,18 @@ func batchProducer(ctx context.Context, kclient *kgo.Client, topic string, event
 		select {
 		case data, ok := <-events:
 			if !ok {
-				flush()
+				flush("shutdown")
 				return
 			}
 
 			batch = append(batch, &kgo.Record{Topic: topic, Value: data})
+			m.bufferedEvents.Set(float64(len(events)))
 			if len(batch) >= batchSize {
-				flush()
+				flush("size")
 			}
 
 		case <-ticker.C:
-			flush()
+			flush("interval")
 		}
 	}
 }

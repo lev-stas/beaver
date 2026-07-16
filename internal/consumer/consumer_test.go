@@ -6,7 +6,12 @@ import (
 	"testing"
 
 	"github.com/lev-stas/beaver/internal/event"
+	"github.com/lev-stas/beaver/internal/metrics"
 )
+
+func testMetrics() *Metrics {
+	return NewMetrics(metrics.NewRegistry())
+}
 
 type fakeCH struct {
 	failUntil int
@@ -39,7 +44,7 @@ func TestProcessBatchWithRetry_Success(t *testing.T) {
 	pg := &fakePG{}
 	events := []*event.RecentChange{{Title: "Foo"}}
 
-	if err := processBatchWithRetry(context.Background(), ch, pg, events); err != nil {
+	if err := processBatchWithRetry(context.Background(), ch, pg, events, testMetrics()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if ch.calls != 1 {
@@ -55,7 +60,7 @@ func TestProcessBatchWithRetry_ClickHouseRecovers(t *testing.T) {
 	pg := &fakePG{}
 	events := []*event.RecentChange{{Title: "Foo"}}
 
-	if err := processBatchWithRetry(context.Background(), ch, pg, events); err != nil {
+	if err := processBatchWithRetry(context.Background(), ch, pg, events, testMetrics()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if ch.calls != 2 {
@@ -71,7 +76,7 @@ func TestProcessBatchWithRetry_ClickHouseExhaustsRetries(t *testing.T) {
 	pg := &fakePG{}
 	events := []*event.RecentChange{{Title: "Foo"}}
 
-	if err := processBatchWithRetry(context.Background(), ch, pg, events); err == nil {
+	if err := processBatchWithRetry(context.Background(), ch, pg, events, testMetrics()); err == nil {
 		t.Fatal("expected error, got nil")
 	}
 	if ch.calls != maxProcessAttempts {
@@ -87,7 +92,7 @@ func TestProcessBatchWithRetry_PostgresFailureDoesNotReinsertClickHouse(t *testi
 	pg := &fakePG{failUntil: 1}
 	events := []*event.RecentChange{{Title: "Foo"}}
 
-	if err := processBatchWithRetry(context.Background(), ch, pg, events); err != nil {
+	if err := processBatchWithRetry(context.Background(), ch, pg, events, testMetrics()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if ch.calls != 1 {

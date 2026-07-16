@@ -28,8 +28,21 @@ func (k *Kafka) Validate() error {
 	return nil
 }
 
+type Metrics struct {
+	ListenAddress string `yaml:"listen-address"`
+}
+
+func (m *Metrics) Validate() error {
+	if m.ListenAddress == "" {
+		return fmt.Errorf("metrics.listen-address is required")
+	}
+
+	return nil
+}
+
 type ProducerConfig struct {
-	Kafka    Kafka `yaml:"kafka"`
+	Kafka    Kafka   `yaml:"kafka"`
+	Metrics  Metrics `yaml:"metrics"`
 	Producer struct {
 		SSEURL        string        `yaml:"sse-url"`
 		UserAgent     string        `yaml:"user-agent"`
@@ -40,6 +53,10 @@ type ProducerConfig struct {
 
 func (c *ProducerConfig) Validate() error {
 	if err := c.Kafka.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Metrics.Validate(); err != nil {
 		return err
 	}
 
@@ -113,6 +130,7 @@ type ConsumerConfig struct {
 	Kafka      Kafka      `yaml:"kafka"`
 	ClickHouse ClickHouse `yaml:"clickhouse"`
 	Postgres   Postgres   `yaml:"postgres"`
+	Metrics    Metrics    `yaml:"metrics"`
 	Consumer   struct {
 		GroupName string `yaml:"consumer-group"`
 	} `yaml:"consumer"`
@@ -128,6 +146,10 @@ func (c *ConsumerConfig) Validate() error {
 	}
 
 	if err := c.Postgres.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Metrics.Validate(); err != nil {
 		return err
 	}
 
