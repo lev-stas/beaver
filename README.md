@@ -137,14 +137,11 @@ deploy/            docker-compose.yml, stock Postgres/ClickHouse configs
      -c "SELECT wiki, title, edit_count, updated_at FROM page_state ORDER BY updated_at DESC LIMIT 5;"
    ```
 
-   Both apps also expose Prometheus-format metrics at `/metrics` (process
-   CPU/memory/goroutines plus app-level throughput, batching and error
-   counters):
-
-   ```
-   curl localhost:9101/metrics   # producer
-   curl localhost:9102/metrics   # consumer
-   ```
+   Both apps also expose Prometheus-format metrics at `/metrics` on port
+   `9100` inside the Compose network (process CPU/memory/goroutines plus
+   app-level throughput, batching and error counters). Monitoring services on
+   that network can scrape `producer:9100` and `consumer:9100`; the metric
+   ports are not published on the Docker host.
 
 5. **Stop the stand.**
 

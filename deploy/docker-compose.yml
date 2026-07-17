@@ -69,8 +69,6 @@ services:
       dockerfile: cmd/producer/Dockerfile
     container_name: producer
     hostname: producer
-    ports:
-      - "9101:9100"
     volumes:
       - ../cmd/producer/config.yml:/app/config.yml:ro
     networks:
@@ -85,8 +83,6 @@ services:
       dockerfile: cmd/consumer/Dockerfile
     container_name: consumer
     hostname: consumer
-    ports:
-      - "9102:9100"
     volumes:
       - ../cmd/consumer/config.yml:/app/config.yml:ro
     networks:

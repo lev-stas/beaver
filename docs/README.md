@@ -51,6 +51,7 @@ it, and replace it when you find a better approach.
 | STEP | Initial state | Suggested goal | Documentation |
 |---|---|---|---|
 | STEP 00 | Project source and single-node Compose topology | Deploy and verify the stand | [Project Initialization](steps/step-00-initialization/README.md) |
+| STEP 01 | Running stand with application metric endpoints | Add infrastructure monitoring and basic dashboards | [Observability from the Start](steps/step-01-observability/README.md) |
 
 Each published Git tag freezes both the infrastructure and its documentation.
 Later STEPs may build on earlier work, but every STEP should remain usable as
