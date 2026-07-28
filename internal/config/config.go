@@ -74,6 +74,8 @@ type ClickHouse struct {
 	Address  string `yaml:"address"`
 	Database string `yaml:"database"`
 	Table    string `yaml:"table"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 func (ch *ClickHouse) Validate() error {
@@ -87,6 +89,14 @@ func (ch *ClickHouse) Validate() error {
 
 	if ch.Table == "" {
 		return fmt.Errorf("clickhouse.table is required")
+	}
+
+	if ch.Username == "" {
+		return fmt.Errorf("clickhouse.username is required")
+	}
+
+	if ch.Password == "" {
+		return fmt.Errorf("clickhouse.password is required")
 	}
 
 	return nil

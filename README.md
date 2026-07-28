@@ -108,6 +108,10 @@ deploy/            docker-compose.yml, stock Postgres/ClickHouse configs
      match the DSN baked into `cmd/consumer/config.example.yml`; if you
      change them here, update `postgres.dsn` in `cmd/consumer/config.yml`
      to match.
+   - `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD`, used to create the ClickHouse
+     account. The defaults match `cmd/consumer/config.example.yml`; if you
+     change them here, update `clickhouse.username` and `clickhouse.password`
+     in `cmd/consumer/config.yml` to match.
 
 3. **Build and start everything.**
 
@@ -131,6 +135,7 @@ deploy/            docker-compose.yml, stock Postgres/ClickHouse configs
 
    ```
    docker exec -it clickhouse clickhouse-client \
+     --user beaver --password beaver \
      --query "SELECT count() FROM beaver.raw_events"
 
    docker exec -it postgres psql -U beaver -d beaver \
@@ -173,6 +178,7 @@ Both apps take a `--config` flag (default `./config.yml`).
 | `kafka.brokers` / `kafka.topic` | same as above |
 | `consumer.consumer-group` | consumer group name |
 | `clickhouse.address` / `.database` / `.table` | native protocol address, e.g. `clickhouse:9000` |
+| `clickhouse.username` / `.password` | ClickHouse credentials |
 | `postgres.dsn` / `.table` | full `postgres://` connection string |
 
 ## What this stand is (and isn't) for
