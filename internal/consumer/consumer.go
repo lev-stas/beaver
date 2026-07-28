@@ -34,7 +34,14 @@ func Run(ctx context.Context, cfg *config.ConsumerConfig) error {
 		}
 	}()
 
-	chClient, err := clickhouse.New(context.Background(), cfg.ClickHouse.Address, cfg.ClickHouse.Database, cfg.ClickHouse.Table)
+	chClient, err := clickhouse.New(
+		context.Background(),
+		cfg.ClickHouse.Address,
+		cfg.ClickHouse.Database,
+		cfg.ClickHouse.Username,
+		cfg.ClickHouse.Password,
+		cfg.ClickHouse.Table,
+	)
 	if err != nil {
 		return fmt.Errorf("connecting to clickhouse: %w", err)
 	}

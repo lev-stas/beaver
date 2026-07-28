@@ -62,6 +62,8 @@ services:
       - dataload
     environment:
       CLICKHOUSE_DB: beaver
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
 
   producer:
     build:
