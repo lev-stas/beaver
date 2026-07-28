@@ -83,7 +83,8 @@ cp deploy/.env.example deploy/.env
 
 The defaults configure Kafka to advertise `kafka-1:9092` inside the Compose
 network and create the PostgreSQL database and user expected by the consumer.
-If you change the PostgreSQL values, make the same change in
+They also create the ClickHouse user expected by the consumer. If you change
+the PostgreSQL or ClickHouse values, make the corresponding change in
 `cmd/consumer/config.yml` before the first deployment.
 
 ## 5. Validate the Compose Configuration
@@ -171,6 +172,7 @@ Count raw events:
 
 ```bash
 docker exec clickhouse clickhouse-client \
+  --user beaver --password beaver \
   --query "SELECT count() FROM beaver.raw_events"
 ```
 
@@ -178,6 +180,7 @@ Inspect a few recent rows:
 
 ```bash
 docker exec clickhouse clickhouse-client \
+  --user beaver --password beaver \
   --query "SELECT id, type, wiki, title, ts FROM beaver.raw_events ORDER BY ts DESC LIMIT 5"
 ```
 

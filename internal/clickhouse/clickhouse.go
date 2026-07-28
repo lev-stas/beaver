@@ -17,10 +17,14 @@ type Client struct {
 	table string
 }
 
-func New(ctx context.Context, address, database, table string) (*Client, error) {
+func New(ctx context.Context, address, database, username, password, table string) (*Client, error) {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{address},
-		Auth: clickhouse.Auth{Database: database},
+		Auth: clickhouse.Auth{
+			Database: database,
+			Username: username,
+			Password: password,
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("opening clickhouse connection: %w", err)
